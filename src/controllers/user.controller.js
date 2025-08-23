@@ -6,13 +6,13 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
 const registerUser = asyncHandler(async (req, res) => {
     const {username, fullName, email, password} = req.body;
-    console.log("email: ", email);
+    // console.log("email: ", email);
 
     if([fullName, username, email, password].some((field) => field?.trim() === "")){
         throw new APIError(400, "All fields are requried!");
     }
 
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or: [{username}, {email}]
     })
 
@@ -21,8 +21,11 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     const avatarLocalPath = req.files?.avatar[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
+    let coverImageLocalPath;
+    if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+        coverImageLocalPath = req.files.coverImage[0].path;
+    }
     if(!avatarLocalPath){
         throw new APIError(400, "Avatar is required!")
     }
