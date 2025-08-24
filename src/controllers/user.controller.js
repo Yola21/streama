@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 import { APIError } from "../utils/APIError.js";
 import { APIResponse } from "../utils/APIResponse.js";
@@ -135,4 +136,48 @@ const logoutUser = asyncHandler(async(req, res) => {
             .json(new APIResponse(200, {}, "User logged Out"))
 })
 
-export {registerUser, loginUser, logoutUser}
+const refreshAccessToken = asyncHandler(async(req, res) => {
+    const incomingRefreshToken = req.cookues.refreshToken || req.body.refreshToken;
+
+    if(incomingRefreshToken){
+        throw new APIError(401, "Unauthorized request");
+    }
+
+    try {
+        const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    
+        const user = await User.findById(decodedToken?._id);
+    
+        if(!user){
+            throw new APIError(401, "Invalid refresh token")
+        }
+    
+        if(incomingRefreshToken !== user?.refreshAccessToken){
+            throw new APIError(401, "Refresh token is expired or used");
+        }
+    
+        const {accessToken, newRefreshToken} = await generateAccessAndRefreshTokens(user._id);
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        return res.status(200)
+                .cookie("accessToken", accessToken, options)
+                .cookie("refreshToken", newRefreshToken, options)
+                .json(
+                    new APIResponse(
+                        200,
+                        {
+                            accessToken,
+                            refreshToken: newRefreshToken
+                        },
+                        "Access token refreshed"
+                    )
+                )
+    } catch (error) {
+        throw new APIError(401, error?.message || "Invalid refresh token")
+    }
+})
+
+export {registerUser, loginUser, logoutUser, refreshAccessToken}
